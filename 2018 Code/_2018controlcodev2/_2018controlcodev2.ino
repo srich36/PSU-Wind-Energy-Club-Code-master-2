@@ -68,7 +68,7 @@ static boolean breakedInCompetition = false;
 //****************************************************//
 
 const int BRAKE_PITCH = 110; //Need to verify pitch for new turbine -> should be verified now
-const int STARTUP_PITCH = 45; //Need to verify pitch for new turbine -> should be verified now
+const int STARTUP_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double VOLTAGE_DIVIDER_LOAD = 14.327;//This needs to be calculated for our new load
 const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
@@ -109,7 +109,6 @@ void setup(){
   pinMode(A6, INPUT);        //For the load voltage
   
   //pinMode(servoPitch, OUTPUT);  Don't think I need this //configures servo pin as output
-  //pinMode(A0, INPUT);   //But don't think so because I'm calling analog read on them
   pitch.attach(SERVO_PITCH_PIN);
   Serial.println("Beginning the control system code");
   
@@ -125,14 +124,15 @@ void setup(){
       currentPitch = STARTUP_PITCH;
     }
   }
-  else{
+  else{   //The kill switch is hit
+    pitch.write(BRAKE_PITCH);
     digitalWrite(LOAD_ARDUINO_PIN, HIGH);
   }
   //if the kill switch is hit don't pitch at all. 
   
   //CHECKING IF KILL SWITCH IS HIT
 
-  analogWrite(PWM_PIN, 255);
+  analogWrite(PWM_PIN, 255);  //Should we start the duty cycle off at 255? I believe so.
 }
 
 void loop(){
@@ -175,8 +175,12 @@ void loop(){
     //Reading in turbine and load voltage
     turbineVoltage = VOLTAGE_DIVIDER_TURBINE*((double)analogRead(A0))*5.0/1023.0;
     prePCCVoltage = VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
-    //loadVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
+    loadVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
     //Reading in turbine and load voltage
+    if(turbineVoltage < 5){
+      analogWrite(PWM_PIN, 255); //TALK TO PEYMAN AND MILTON FOR THIS
+    }
+    
     
     
     //For testing
@@ -190,85 +194,87 @@ void loop(){
     //For testing
     
     //PCC Disconnect
-    //breakNeeded = determineDisconnect(loadVoltage, prePCCVoltage);
-    //processDisconnectedState(breakNeeded);
+    breakNeeded = determineDisconnect(loadVoltage, prePCCVoltage);
+    processDisconnectedState(breakNeeded);
     //PCC Disconnect block
+    if(!breakNeeded){   //ONLY PROCESS THE REST OF THE CODE IF A BREAK IS NOT NEEDED
 
-    //Calculating RPM and Power from turbine voltage
-    RPM = getRPMfromVoltageIn(turbineVoltage);
-    power = calculatePowerFromRPM(RPM); 
-    //Calculating RPM and Power from turbine Voltage
-  
-    //For testing
-    Serial.print("Calculated power to be: ");
-    Serial.println(power);                         //Only need to output power because power comes from RPM
-    //For testing
-   
-    //Getting the estimated wind speed
-    inferredWindSpeed = inferWindSpeed(turbineVoltage, RPM, power);
-    //Getting the estimated wind speed
-
-    //Pitching to the corresponding pitch at the estimated wind speed
-    pitchToPitchAngleBucket(inferredWindSpeed);
-    //Pitching to the corresponding pitch at the estimated wind speed
-    if(turbineVoltage >= MAX_VOLTAGE){
-      pitch.write(currentPitch-3);
-      currentPitch-=3;
-    }
+      //Calculating RPM and Power from turbine voltage
+      RPM = getRPMfromVoltageIn(turbineVoltage);
+      power = calculatePowerFromRPM(RPM); 
+      //Calculating RPM and Power from turbine Voltage
     
-    //Processing the estimated wind speed. PROTECTED AGAINST OVERFLOWS < 0 AND > 255
-
-    //CASE 1
-    if(inferredWindSpeed < 11){ 
-      dutyCycle = calculateDutyCycle(RESISTANCE, calculatePowerFromRPM(RPM), turbineVoltage);
-      Serial.print("Duty cycle returned as: ");
-      Serial.println(dutyCycle);
-      theoreticalOutputVoltage = calculateTheoreticalOutputVoltage(turbineVoltage, dutyCycle);
-      if(dutyCycle >= 0 && dutyCycle <= 255){
-        analogWrite(PWM_PIN, dutyCycle);
-        Serial.print("Setting a duty cycle of: ");
-        Serial.println(dutyCycle);
+      //For testing
+      Serial.print("Calculated power to be: ");
+      Serial.println(power);                         //Only need to output power because power comes from RPM
+      //For testing
+     
+      //Getting the estimated wind speed
+      inferredWindSpeed = inferWindSpeed(turbineVoltage, RPM, power);
+      //Getting the estimated wind speed
+  
+      //Pitching to the corresponding pitch at the estimated wind speed
+      pitchToPitchAngleBucket(inferredWindSpeed);
+      //Pitching to the corresponding pitch at the estimated wind speed
+      if(turbineVoltage >= MAX_VOLTAGE){
+        pitch.write(currentPitch-3);
+        currentPitch-=3;
       }
+      
+      //Processing the estimated wind speed. PROTECTED AGAINST OVERFLOWS < 0 AND > 255
+  
+      //CASE 1
+      if(inferredWindSpeed < 11){ 
+        dutyCycle = calculateDutyCycle(RESISTANCE, calculatePowerFromRPM(RPM), turbineVoltage);
+        Serial.print("Duty cycle returned as: ");
+        Serial.println(dutyCycle);
+        theoreticalOutputVoltage = calculateTheoreticalOutputVoltage(turbineVoltage, dutyCycle);
+        if(dutyCycle >= 0 && dutyCycle <= 255){
+          analogWrite(PWM_PIN, dutyCycle);
+          Serial.print("Setting a duty cycle of: ");
+          Serial.println(dutyCycle);
+        }
+        else{
+          if(dutyCycle < 0){
+            dutyCycle = 0;
+            theoreticalOutputVoltage = 0;
+            analogWrite(PWM_PIN, 0);
+          }
+          if(dutyCycle > 255){
+            dutyCycle = 255;
+            theoreticalOutputVoltage = turbineVoltage;
+            analogWrite(PWM_PIN, 255);
+          } 
+        //LOOP THROUGH AND MAKE ACTUAL OUTPUT VOLTAGE REACH THEORETICAL
+        stabilizeVoltageGivenDutyCycle(dutyCycle, theoreticalOutputVoltage);
+        //LOOP THROUGH AND MAKE ACTUAL OUTPUT VOLTAGE REACH THEORETICAL
+        }
+      } 
+      //CASE 2 INFERRED WIND SPEED IS > 11
       else{
-        if(dutyCycle < 0){
+        dutyCycle = calculateDutyCycle(RESISTANCE, POWER_AT_11MS, turbineVoltage);
+        theoreticalOutputVoltage = double((dutyCycle/255.0))*turbineVoltage;
+        if(dutyCycle > 255){
+          dutyCycle = 255; 
+          theoreticalOutputVoltage = turbineVoltage;
+          analogWrite(PWM_PIN, dutyCycle);
+        }
+        else if(dutyCycle < 0){
           dutyCycle = 0;
           theoreticalOutputVoltage = 0;
           analogWrite(PWM_PIN, 0);
         }
-        if(dutyCycle > 255){
-          dutyCycle = 255;
-          theoreticalOutputVoltage = turbineVoltage;
-          analogWrite(PWM_PIN, 255);
-        } 
-      //LOOP THROUGH AND MAKE ACTUAL OUTPUT VOLTAGE REACH THEORETICAL
-      stabilizeVoltageGivenDutyCycle(dutyCycle, theoreticalOutputVoltage);
-      //LOOP THROUGH AND MAKE ACTUAL OUTPUT VOLTAGE REACH THEORETICAL
+        else{
+          analogWrite(PWM_PIN, dutyCycle);
+          stabilizeVoltageGivenDutyCycle(dutyCycle, theoreticalOutputVoltage);
+        }
       }
-    } 
-    //CASE 2 INFERRED WIND SPEED IS > 11
-    else{
-      dutyCycle = calculateDutyCycle(RESISTANCE, POWER_AT_11MS, turbineVoltage);
-      theoreticalOutputVoltage = double((dutyCycle/255.0))*turbineVoltage;
-      if(dutyCycle > 255){
-        dutyCycle = 255; 
-        theoreticalOutputVoltage = turbineVoltage;
-        analogWrite(PWM_PIN, dutyCycle);
-      }
-      else if(dutyCycle < 0){
-        dutyCycle = 0;
-        theoreticalOutputVoltage = 0;
-        analogWrite(PWM_PIN, 0);
-      }
-      else{
-        analogWrite(PWM_PIN, dutyCycle);
-        stabilizeVoltageGivenDutyCycle(dutyCycle, theoreticalOutputVoltage);
-      }
-    }
-    //CASE 2 INFERRED WIND SPEED IS > 11
-
-    
-    //Processing the estimated wind speed. NEED TO EDIT TO ADJUST DUTY CYCLE
+      //CASE 2 INFERRED WIND SPEED IS > 11
   
+      
+      //Processing the estimated wind speed. NEED TO EDIT TO ADJUST DUTY CYCLE
+    
+    }
   }
   //delay(5000);
 }
@@ -303,7 +309,7 @@ void processDisconnectedState(boolean disconnected){
     EEPROM.write(0+1,currentPitch);
     digitalWrite(LOAD_ARDUINO_PIN, HIGH);
     pitch.write(BRAKE_PITCH);
-    delay(2000);
+    delay(1000); //DELAY SO IT DOES NOT PITCH BACK HERE
   }
   else{
     breakedInCompetition = false;
@@ -434,7 +440,15 @@ void pitchToPitchAngleBucket(double windSpeed){
 
 
 boolean determineDisconnect(double loadVoltage, double prePCCVoltage){
-  if(prePCCVoltage-loadVoltage > VOLTAGE_DIFFERENT_BUFFER && prePCCVoltage < LOAD_VOTLAGE_BUFFER){
+  double totalPrePCCVoltages = prePCCVoltage;
+  double totalLoadVoltages = loadVoltage;
+  for(int i = 0; i < 9; i++){
+    totalPrePCCVoltages += VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
+    totalLoadVoltages += VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
+  }
+  double averageLoadVoltage = totalLoadVoltages/=10;
+  double averagePrePCCVoltage = totalPrePCCVoltages/=10;
+  if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER && averageLoadVoltage < LOAD_VOTLAGE_BUFFER){
     Serial.println("System detects a PCC disconnect");
     delay(1000);
     return true;

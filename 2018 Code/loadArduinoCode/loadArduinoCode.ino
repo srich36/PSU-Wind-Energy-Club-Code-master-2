@@ -11,7 +11,7 @@ const int CONTROL_SIGNAL_PIN = 10;
 
 
 
-boolean determineDisconnect(double loadVoltage, double turbineVoltage);
+
 void setup(){
   pinMode(MOSFET_SIGNAL_PIN, OUTPUT);
   pinMode(CONTROL_SIGNAL_PIN, INPUT);
@@ -24,21 +24,13 @@ void loop(){
   if(digitalRead(CONTROL_SIGNAL_PIN) == HIGH){
       
     digitalWrite(MOSFET_SIGNAL_PIN, HIGH); //turn on the mosfet
-    delay(10000);                         //Wait 10 secons
+    //delay(10000);                         //Don't need to wait 10 seconds, just need to make sure the control sends low if it is not braked
     digitalWrite(MOSFET_SIGNAL_PIN, LOW); //turn mosfet back off
   }
   else{
     digitalWrite(MOSFET_SIGNAL_PIN, LOW);
   }
- }
-  
-  
-  
-  //******************************************************************************//
-  //******************************************************************************//
-  //*****************************PCC DISCONNECT BLOCK*****************************//
-  //******************************************************************************//
-  //******************************************************************************//
+}
   
   
 
