@@ -57,9 +57,9 @@ const int SERVO_PITCH_PIN = 9;        //Digital
 //const int KILL_SWITCH_PIN = 2      //Analog
 const int TURBINE_VOLTAGE_PIN = 0;    //Analog
 const int PWM_CONVERSION = 255;       //the arduino operates on a 0-255 scale for pwm so the duty cycle needs to be within this range
-const int FIVE_TO_SEVEN_PITCH_ANGLE = 61;
-const int SEVEN_TO_TEN_PITCH_ANGLE = 57;
-const int TEN_PLUS_INITIAL_PITCH_ANGLE = 48;
+const int FIVE_TO_SEVEN_PITCH_ANGLE = 60;
+const int SEVEN_TO_TEN_PITCH_ANGLE = 56;
+const int TEN_PLUS_INITIAL_PITCH_ANGLE = 50;
 const double SIGNAL_BUFFER = .01;
 const double THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER = .3;
 static int currentPitch;
@@ -506,7 +506,7 @@ double averageLoadVoltage(){
 double averagePrePCCVoltage(){
   double totalVoltage = 0;
   for(int i = 0; i < 10; i++){
-    totalVoltage+=VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A0))*5.0/1023.0;
+    totalVoltage+=VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
   }
   return totalVoltage/10;
 
