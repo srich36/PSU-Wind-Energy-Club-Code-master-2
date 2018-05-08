@@ -15,7 +15,7 @@ static int currentPitch;
 
 
 double turbineVoltageBefore;
-const int STARTUP_PITCH = 45; //Need to verify pitch for new turbine -> should be verified now
+const int STARTUP_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER = .3;
 
@@ -32,6 +32,8 @@ void setup(){
   pitch.attach(SERVO_PITCH_PIN);
   pitch.write(STARTUP_PITCH);
   currentPitch = STARTUP_PITCH;
+  analogWrite(PWM_PIN, 50);
+  delay(30000);
 }
 
 void loop(){
@@ -163,20 +165,20 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
     flag = false;
     if(VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0 < desiredVoltage - THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER){
       flag = true;
-      if(dutyCycle > 0){
-        analogWrite(PWM_PIN, --dutyCycle);
-      }
-      else{
-        break;
-      }
-    }
-    else if(VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0 > desiredVoltage + THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER){
-      flag = true;
       if(dutyCycle < 255){
         analogWrite(PWM_PIN, ++dutyCycle);
       }
       else{
-        break;
+        //DO NOTHING
+      }
+    }
+    else if(VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0 > desiredVoltage + THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER){
+      flag = true;
+      if(dutyCycle > 1){
+        analogWrite(PWM_PIN, --dutyCycle);
+      }
+      else{
+        //DO NOTHING
       }
     }
        
