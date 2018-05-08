@@ -67,7 +67,7 @@ void loop(){
       analogWrite(PWM_PIN, 255);
     }
   }
-  stabilizeVoltageGivenDutyCycle(dutyCycle, theoreticalVoltage);
+  stabilizeVoltageGivenDutyCycle(dutyCycle, 5); //This is the theoretical output voltage
   
   
   //Move to the t+1 loop domain
