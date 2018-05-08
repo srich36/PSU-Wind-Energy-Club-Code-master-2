@@ -77,7 +77,7 @@ const int MAXIMUM_USABLE_PITCH_RANGE = 80;
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double VOLTAGE_DIVIDER_LOAD = 14.327;//This needs to be calculated for our new load
 const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
-const double VOLTAGE_DIFFERENT_BUFFER = 2.5;
+const double VOLTAGE_DIFFERENT_BUFFER = 5.5;
 const double LOAD_VOTLAGE_BUFFER = .5;
 const double MAX_VOLTAGE = 45;
 const int RESISTANCE = 50; //Is this a constant or does it change? 
@@ -113,7 +113,7 @@ void setup(){
   Serial.begin(9600);
   
   //Change the timer settings
-  //TCCR2B = TCCR2B & 0b11111000 | 0x01;
+  TCCR2B = TCCR2B & 0b11111000 | 0x02;
   
   pinMode(PWM_PIN, OUTPUT);  //Configures PWM pin as output
   pinMode(LOAD_ARDUINO_PIN, OUTPUT);
@@ -207,16 +207,13 @@ void loop(){
         Serial.print("Reading in a turbine voltage of: ");
         Serial.println(turbineVoltage);
         Serial.print("Reading in a load voltage of: ");
-        //Serial.println(loadVoltage);
+        Serial.println(loadVoltage);
         Serial.print("Reading in a prePCC voltage of: ");
         Serial.println(prePCCVoltage);
         delay(3000);
         //For testing
         
-        //PCC Disconnect
-        
-        //PCC Disconnect block
-           //ONLY PROCESS THE REST OF THE CODE IF A BREAK IS NOT NEEDED
+        //ONLY PROCESS THE REST OF THE CODE IF A BREAK IS NOT NEEDED
     
         //Calculating RPM and Power from turbine voltage
         RPM = getRPMfromVoltageIn(turbineVoltage);
@@ -248,8 +245,8 @@ void loop(){
               theoreticalOutputVoltage = turbineVoltage;
               analogWrite(PWM_PIN, experimentalDutyCycle);
             }
-            else if(experimentalDutyCycle < 0){
-              experimentalDutyCycle = 0;
+            else if(experimentalDutyCycle < 1){
+              experimentalDutyCycle = 1;
               theoreticalOutputVoltage = 0;
               analogWrite(PWM_PIN, experimentalDutyCycle);
             }

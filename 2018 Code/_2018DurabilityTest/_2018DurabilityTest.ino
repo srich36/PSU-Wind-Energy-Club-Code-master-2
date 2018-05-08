@@ -11,6 +11,8 @@ const int UPPER_VOLTAGE_LIMIT = 15;
 const int MAINTAIN_VOLTAGE_IN = 13;
 const double VOLTAGE_DIVIDER_LOAD = 14.327;
 const int DUTY_CYCLE_RATIO = 5;
+const int MINIMUM_PITCH_RANGE = 25;
+const int MAXIMUM_PITCH_RANGE = 75;
 static int currentPitch;
 
 
@@ -76,24 +78,30 @@ void determinePitch(double turbineVoltage){
   
   //Case 1:
   if(turbineVoltage < LOWER_VOLTAGE_LIMIT){
-    pitch.write(currentPitch+1);
-    currentPitch++;
+    if(currentPitch <= MAXIMUM_PITCH_RANGE){
+      pitch.write(currentPitch+1);
+      currentPitch++;
+    }
   }
   else if(turbineVoltage> LOWER_VOLTAGE_LIMIT && turbineVoltage < MAINTAIN_VOLTAGE_IN){ //Case 2
     if(turbineVoltage>=turbineVoltageBefore){
       //Do nothing
     }
     else{
-      pitch.write(currentPitch+1);
-      currentPitch++;
+      if(currentPitch <= MAXIMUM_PITCH_RANGE){
+        pitch.write(currentPitch+1);
+        currentPitch++;
+      }
     }
     
   }
   else if(turbineVoltage >= MAINTAIN_VOLTAGE_IN && turbineVoltage < UPPER_VOLTAGE_LIMIT){  //Case 3
     
     if(turbineVoltage>=turbineVoltageBefore){
-      pitch.write(currentPitch-1);
-      currentPitch--;
+      if(currentPitch >= MINIMUM_PITCH_RANGE){
+        pitch.write(currentPitch-1);
+        currentPitch--;
+      }
     }
     else{
       //Do nothing
@@ -101,8 +109,19 @@ void determinePitch(double turbineVoltage){
     
   }
   else if(turbineVoltage>=UPPER_VOLTAGE_LIMIT){
-    pitch.write(currentPitch - 3);
-    currentPitch -= 3;
+    if(currentPitch >= MINIMUM_PITCH_RANGE+3){
+      pitch.write(currentPitch - 3);
+      currentPitch -= 3;
+    }
+    else if(currentPitch >= MINIMUM_PITCH_RANGE+2){
+
+      pitch.write(currentPitch - 2);
+      currentPitch -= 2;
+    }
+    else if(currentPitch >= MINIMUM_PITCH_RANGE+2){
+      pitch.write(currentPitch-1);
+      currentPitch-=1;
+    }
   }
   
   else{
