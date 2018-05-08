@@ -134,37 +134,33 @@ void determinePitch(double turbineVoltage){
     Serial.println(turbineVoltageBefore);
     //For debugging
   }
-  
+  delay(10);
 }
 
 int calculateDutyCycle(double turbineVoltage){
   if(turbineVoltage > 5){
     
+    int dutyCycle = int(-.0001*pow(turbineVoltage, 5)+.012*pow(turbineVoltage,4) -.5342*pow(turbineVoltage, 3)+11.793*pow(turbineVoltage, 2)-130.81*turbineVoltage+604.54);
+    //For debugging
+    Serial.print("Calculating a duty cycle of: ");
+    Serial.println(dutyCycle);
     
-    //For debugging
-    Serial.print("Sending a duty cycle of: ");
-    double theoreticalDutyCycle = (DUTY_CYCLE_RATIO)/turbineVoltage;
-    //For debugging
-    if(theoreticalDutyCycle < 25){
-      return int((255)*(.000162-.114*theoreticalDutyCycle+5.68*theoreticalDutyCycle*theoreticalDutyCycle));
+    if(dutyCycle > 255){
+      return 255;
     }
-    else if(theoreticalDutyCycle < .87){
-      return int((255)*(.035+1.31*theoreticalDutyCycle-.58*theoreticalDutyCycle*theoreticalDutyCycle));
-    }
-    else if(theoreticalDutyCycle <= 1){
-      return int((255)*(7.51-15.6*theoreticalDutyCycle+8.92*theoreticalDutyCycle*theoreticalDutyCycle));
+    else if(dutyCycle < 0){
+      return 1;
     }
     else{
-      Serial.println("What the heck happened here? ");
-      return 255;
-      
+      return dutyCycle;
     }
+    
     
   }
   else{
     
     //For debugging
-    Serial.println("Not sure if this should ever get in this else loop. Sending a fully on duty cycle just in case. ");
+    Serial.println("Input voltage less than 5. Sending a fully on duty cycle. ");
     //For debugging
     
     return 255; //Max duty cycle 
