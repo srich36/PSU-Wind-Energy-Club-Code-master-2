@@ -77,13 +77,13 @@ const int MAXIMUM_USABLE_PITCH_RANGE = 80;
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double VOLTAGE_DIVIDER_LOAD = 14.327;//This needs to be calculated for our new load
 const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
-const double VOLTAGE_DIFFERENT_BUFFER = .5;
+const double VOLTAGE_DIFFERENT_BUFFER = 2.5;
 const double LOAD_VOTLAGE_BUFFER = .5;
 const double MAX_VOLTAGE = 45;
 const int RESISTANCE = 50; //Is this a constant or does it change? 
-const double POWER_AT_11MS = 45.5;
+const double POWER_AT_11MS = 20;
 const double VOLTAGE_AT_11_MS = 40;
-const double VOLTAGE_AT_11_MS_BUFFER = 1;
+const double VOLTAGE_AT_11_MS_BUFFER = 2.5;
 
 Servo pitch;
 
@@ -106,6 +106,7 @@ double averageLoadVoltage();
 double averageTurbineVoltage();
 double averagePrePCCVoltage();
 int caculateExperimentalDutyCycle(double theoreticalDutyCycle);
+boolean disconnectBetterCheck();
 
 
 void setup(){
@@ -137,8 +138,8 @@ void setup(){
     }
   }
   else{   //The kill switch is hit
-    pitch.write(BRAKE_PITCH);
     digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+    pitch.write(BRAKE_PITCH);
   }
   //if the kill switch is hit don't pitch at all. 
   
@@ -306,7 +307,7 @@ void processDisconnectedState(boolean disconnected){
     digitalWrite(LOAD_ARDUINO_PIN, HIGH);
     pitch.write(BRAKE_PITCH);
     currentPitch = BRAKE_PITCH;
-    delay(1000); //DELAY SO IT DOES NOT PITCH BACK HERE
+    delay(2000); //DELAY SO IT DOES NOT PITCH BACK HERE
   }
   else{
     breakedInCompetition = false;
@@ -422,14 +423,15 @@ boolean determineDisconnect(double loadVoltage, double prePCCVoltage){
   for(int i = 0; i < 9; i++){
     totalPrePCCVoltages += VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
     totalLoadVoltages += VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
-    delay(1);
+    delay(10);
   }
   double averageLoadVoltage = totalLoadVoltages/=10;
   double averagePrePCCVoltage = totalPrePCCVoltages/=10;
-  if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER && averageLoadVoltage < LOAD_VOTLAGE_BUFFER){
-    Serial.println("System detects a PCC disconnect");
+  if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER || averageLoadVoltage - averagePrePCCVoltage > VOLTAGE_DIFFERENT_BUFFER){
+    Serial.println("System detects a PCC disconnect. Checking in further detail. ");
+    boolean checkedFurther = disconnectBetterCheck();
     delay(1000);
-    return true;
+    return checkedFurther;
   }
   return false;
 }
@@ -517,4 +519,23 @@ int calculateExperimentalDutyCycle(double theoreticalDutyCycle){
 }
 
 
+boolean disconnectBetterCheck(){
+  double averageOfAveragePrePCCVoltages;
+  double averageOfAverageLoadVoltages;
+  double totalAveragePrePCCVoltages = 0;
+  double totalAverageLoadVoltages = 0;
+  for(int i = 0; i < 10; i++){
+    totalAveragePrePCCVoltages+=averagePrePCCVoltage();
+    totalAverageLoadVoltages+=averageLoadVoltage();
+    delay(15);
+
+  }
+  if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER || averageLoadVoltage - averagePrePCCVoltage > VOLTAGE_DIFFERENT_BUFFER){
+    return true;
+  }
+  else{
+    return false;
+  }
+  
+}
 
