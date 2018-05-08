@@ -20,6 +20,7 @@ double turbineVoltageBefore;
 const int STARTUP_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER = .3;
+const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
 
 void determinePitch(double turbineVoltage);
 int calculateDutyCycle(double);
@@ -29,13 +30,16 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage);
 Servo pitch;
 
 void setup(){
+  Serial.begin(9600);
+  Serial.println("Starting the test");
   pinMode(PWM_PIN, OUTPUT);
   turbineVoltageBefore = -1;
   pitch.attach(SERVO_PITCH_PIN);
   pitch.write(STARTUP_PITCH);
   currentPitch = STARTUP_PITCH;
   analogWrite(PWM_PIN, 50);
-  delay(30000);
+  delay(3000);
+  
 }
 
 void loop(){
@@ -68,6 +72,9 @@ void loop(){
     }
   }
   stabilizeVoltageGivenDutyCycle(dutyCycle, 5); //This is the theoretical output voltage
+  double prePCCVoltage = VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
+  Serial.print("prePCC voltage is: ");
+  Serial.println(prePCCVoltage);
   
   
   //Move to the t+1 loop domain
@@ -140,7 +147,7 @@ void determinePitch(double turbineVoltage){
 int calculateDutyCycle(double turbineVoltage){
   if(turbineVoltage > 5){
     
-    int dutyCycle = int(-.0001*pow(turbineVoltage, 5)+.012*pow(turbineVoltage,4) -.5342*pow(turbineVoltage, 3)+11.793*pow(turbineVoltage, 2)-130.81*turbineVoltage+604.54);
+    int dutyCycle = int(17397*pow(turbineVoltage, -2.538));
     //For debugging
     Serial.print("Calculating a duty cycle of: ");
     Serial.println(dutyCycle);
@@ -176,8 +183,9 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
   
   int iterations = 0;
   bool flag = true;
-  while(iterations < 50 && flag == true){
+  while(iterations < 1000 && flag == true){
     flag = false;
+    double prePCCVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0;
     if(VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0 < desiredVoltage - THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER){
       flag = true;
       if(dutyCycle < 255){

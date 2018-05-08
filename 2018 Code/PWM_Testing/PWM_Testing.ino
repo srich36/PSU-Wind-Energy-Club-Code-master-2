@@ -36,7 +36,7 @@ void writePWMVoltage(double PWMdutycycle){
 
 void loop()
 {
-  writePWMVoltage(60);
+  writePWMVoltage(9);
 }
 
 
