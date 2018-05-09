@@ -138,16 +138,13 @@ void setup(){
   //if the kill switch is hit don't pitch at all. 
   
   //CHECKING IF KILL SWITCH IS HIT
-  
-  analogWrite(PWM_PIN, 50);  
-  analog50 = true;
 }
 
 void loop(){
 
   Serial.print("Current pitch equal to: ");
   Serial.println(currentPitch);
-  delay(2000);
+  //delay(2000);
   //For debugging
   Serial.print("Starting a new loop current pitch is currently equal to: ");
   Serial.println(currentPitch);
@@ -196,28 +193,20 @@ void loop(){
     
     //Reading in turbine, pre-pcc, and load voltage
     turbineVoltage = averageTurbineVoltage();
-    prePCCVoltage = averagePrePCCVoltage();
+    //prePCCVoltage = averagePrePCCVoltage();
     loadVoltage = averageLoadVoltage();
     //Reading in turbine, pre-pcc, and load voltage
   
     //CHECKING FOR AND PROCESSING A DISCONNECT
-    breakNeeded = determineDisconnect(loadVoltage, prePCCVoltage);
+    breakNeeded = determineDisconnect(loadVoltage, turbineVoltage);
     processDisconnectedState(breakNeeded);
     //CHECKING FOR AND PROCESSING A DISCONNECT
     
     if(!breakNeeded){
       if(turbineVoltage < 5){
-        if(!analog50){
-          analogWrite(PWM_PIN, 50); 
-          Serial.println("Turbine voltage less than 5. Setting a duty cycle of 50");
-          analog50 = true;
-        }
+        
       }
       else{
-        if(!analog255){
-          analogWrite(PWM_PIN, 255);
-          analog255=true;      
-        }
       
         //For testing
         Serial.print("Reading in a turbine voltage of: ");
