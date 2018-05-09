@@ -1,6 +1,11 @@
+//11MS 25-48
+//12MS 41-65
+//13MS 46-70
+
+
 #include <Servo.h>
-const int MINIMUM_PITCH_RANGE = 45;
-const int MAXIMUM_PITCH_RANGE = 72;
+const int MINIMUM_PITCH_RANGE = 46;
+const int MAXIMUM_PITCH_RANGE = 70;
 const int PWM_PIN = 3;
 const double VOLTAGE_DIVIDER_TURBINE = 13.015;
 

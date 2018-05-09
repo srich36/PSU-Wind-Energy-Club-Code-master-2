@@ -19,23 +19,6 @@
 
 //Analogwrite also sets the pin to output when called
 
-//****************************************************//
-//******************Questions to Ask:*************//
-//****************************************************//
-//
-//1. Is resistance constant? If not, which resistance should I use? Because it is always changing in the equation and optimal power outputs. 
-//A: the effective resistance is changing through the duty cycle. The r in the equations is that constant 50
-//
-//2. How are we determining wind speed? Using the data that has a given Vin and given power output at
-//A: Gven inputs of voltage, RPM, and power, we can estimate the wind speed 
-//
-//3. On the resistance power curve data plot, are those optimal pitch angles at the given wind speed all at a 50ohm resistance? Is that what we are operating at constantly?
-//A: We are just doing buckets of pitch angles for a given wind speed
-//
-//4. So we want to fix power, do we need to find the RPM at the optimal pitch angle at 11 m/s and calculate that power
-// Then keep that is constant in the duty cycle equation? Because if so, then we need to test more at 11m/s because we don't have
-// data there at a 50 ohm resistance.
-//A: Yes the power at 11m/s is a constant we will maintain.
 
 
 
@@ -57,14 +40,16 @@ const int SERVO_PITCH_PIN = 9;        //Digital
 //const int KILL_SWITCH_PIN = 2      //Analog
 const int TURBINE_VOLTAGE_PIN = 0;    //Analog
 const int PWM_CONVERSION = 255;       //the arduino operates on a 0-255 scale for pwm so the duty cycle needs to be within this range
-const int FIVE_TO_SEVEN_PITCH_ANGLE = 60;
-const int SEVEN_TO_TEN_PITCH_ANGLE = 56;
-const int TEN_PLUS_INITIAL_PITCH_ANGLE = 50;
+const int FIVE_TO_SEVEN_PITCH_ANGLE = 50;
+const int SEVEN_TO_TEN_PITCH_ANGLE = 48;
+const int TEN_PLUS_INITIAL_PITCH_ANGLE = 31;
 const double SIGNAL_BUFFER = .01;
 const double THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER = .3;
 static int currentPitch;
 static boolean breakedInCompetition = false;
 const int CYCLES_PER_THRESHOLD_CROSS = 500;
+static boolean analog50 = false;
+static boolean analog255 = false;
 
 //****************************************************//
 //****************Control System Constants************//
@@ -72,17 +57,17 @@ const int CYCLES_PER_THRESHOLD_CROSS = 500;
 
 const int BRAKE_PITCH = 110; //Need to verify pitch for new turbine -> should be verified now
 const int STARTUP_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
-const int MINIMUM_USABLE_PITCH_RANGE = 25;
-const int MAXIMUM_USABLE_PITCH_RANGE = 80;
+const int MINIMUM_PITCH_ANGLE = 25;
+const int MAXIMUM_PITCH_ANGLE= 90;
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double VOLTAGE_DIVIDER_LOAD = 14.327;//This needs to be calculated for our new load
 const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
-const double VOLTAGE_DIFFERENT_BUFFER = 5.5;
-const double LOAD_VOTLAGE_BUFFER = .5;
+const double VOLTAGE_DIFFERENT_BUFFER = 3.5;
+const double LOAD_VOLTAGE_BUFFER = 2.0;
 const double MAX_VOLTAGE = 45;
 const int RESISTANCE = 50; //Is this a constant or does it change? 
 const double POWER_AT_11MS = 20;
-const double VOLTAGE_AT_11_MS = 40;
+const double VOLTAGE_AT_11_MS = 37;
 const double VOLTAGE_AT_11_MS_BUFFER = 2.5;
 
 Servo pitch;
@@ -128,28 +113,40 @@ void setup(){
   //CHECKING IF KILL SWITCH IS HIT
   if(digitalRead(A1) == HIGH){  //because the circuit is normally closed. High means the kill switch is not hit
     digitalWrite(LOAD_ARDUINO_PIN, LOW);
+    /*
     if(EEPROM.read(0)){
       pitch.write(EEPROM.read(0+1));
+      Serial.print("At pitch: ");
+      Serial.println(EEPROM.read(0+1));
       currentPitch = EEPROM.read(0+1);
     }
     else{
       pitch.write(STARTUP_PITCH);
+      Serial.print("At pitch: ");
+      Serial.println(STARTUP_PITCH);
       currentPitch = STARTUP_PITCH;
-    }
+    }*/
+    pitch.write(STARTUP_PITCH);
+    Serial.println(STARTUP_PITCH);
+    currentPitch = STARTUP_PITCH;
   }
   else{   //The kill switch is hit
-    digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+    //digitalWrite(LOAD_ARDUINO_PIN, HIGH);
     pitch.write(BRAKE_PITCH);
   }
   //if the kill switch is hit don't pitch at all. 
   
   //CHECKING IF KILL SWITCH IS HIT
-
+  
   analogWrite(PWM_PIN, 50);  
+  analog50 = true;
 }
 
 void loop(){
-  
+
+  Serial.print("Current pitch equal to: ");
+  Serial.println(currentPitch);
+  delay(2000);
   //For debugging
   Serial.print("Starting a new loop current pitch is currently equal to: ");
   Serial.println(currentPitch);
@@ -173,12 +170,23 @@ void loop(){
 
     Serial.println("Kill switch hit.");
     //NEEDS TESTING
-    digitalWrite(LOAD_ARDUINO_PIN, HIGH);
-    Serial.println("Kill switch is hit. Turbine is braking or is already braked.");
-    breakNeeded = true;
-    processDisconnectedState(breakNeeded);
+    double turbineVoltage = averageTurbineVoltage();
+    if(turbineVoltage > 7.2){
+      digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+      Serial.println("Kill switch is hit. Turbine is braking or is already braked.");
+      breakNeeded = true;
+      processDisconnectedState(breakNeeded);
+    }
+    else{
+      Serial.println("Not enough power to pitch. not sending a signal.");
+    }
   }
   else{
+    digitalWrite(LOAD_ARDUINO_PIN, LOW);
+    if(currentPitch == BRAKE_PITCH){
+      pitch.write(STARTUP_PITCH);
+      currentPitch = STARTUP_PITCH;
+    }
     Serial.println("Kill switch not hit. ");
     
     //Kill switch not hit
@@ -190,7 +198,7 @@ void loop(){
     prePCCVoltage = averagePrePCCVoltage();
     loadVoltage = averageLoadVoltage();
     //Reading in turbine, pre-pcc, and load voltage
-
+  
     //CHECKING FOR AND PROCESSING A DISCONNECT
     breakNeeded = determineDisconnect(loadVoltage, prePCCVoltage);
     processDisconnectedState(breakNeeded);
@@ -198,10 +206,17 @@ void loop(){
     
     if(!breakNeeded){
       if(turbineVoltage < 5){
-        analogWrite(PWM_PIN, 50); //TALK TO PEYMAN AND MILTON FOR THIS
+        if(!analog50){
+          analogWrite(PWM_PIN, 50); 
+          Serial.println("Turbine voltage less than 5. Setting a duty cycle of 50");
+          analog50 = true;
+        }
       }
       else{
-      
+        if(!analog255){
+          analogWrite(PWM_PIN, 255);
+          analog255=true;      
+        }
       
         //For testing
         Serial.print("Reading in a turbine voltage of: ");
@@ -210,7 +225,7 @@ void loop(){
         Serial.println(loadVoltage);
         Serial.print("Reading in a prePCC voltage of: ");
         Serial.println(prePCCVoltage);
-        delay(3000);
+       // delay(3000);
         //For testing
         
         //ONLY PROCESS THE REST OF THE CODE IF A BREAK IS NOT NEEDED
@@ -220,48 +235,47 @@ void loop(){
         power = calculatePowerFromRPM(RPM); 
         //Calculating RPM and Power from turbine Voltage
         
-        //For testing
-        Serial.print("Calculated power to be: ");
-        Serial.println(power);                         //Only need to output power because power comes from RPM
-        //For testing
                
         //Getting the estimated wind speed
         inferredWindSpeed = inferWindSpeed(turbineVoltage, RPM, power);
         //Getting the estimated wind speed
+        Serial.print("Estimating the wind speed to be: ");
+        Serial.println(inferredWindSpeed);
+        delay(2000);
       
         //Pitching to the corresponding pitch at the estimated wind speed
         if(turbineVoltage < VOLTAGE_AT_11_MS - VOLTAGE_AT_11_MS_BUFFER){
           pitchToPitchAngleBucket(inferredWindSpeed);
-          analogWrite(PWM_PIN, 255);
+          Serial.println("Sending a duty cycle of 255");
         }
         else{
-          for(int i = 0; i < CYCLES_PER_THRESHOLD_CROSS; i++){
-            theoreticalDutyCycle = calculateTheoreticalDutyCycle(RESISTANCE, POWER_AT_11MS, turbineVoltage);
-            theoreticalOutputVoltage = double((theoreticalDutyCycle/255.0))*turbineVoltage;
-            experimentalDutyCycle = calculateExperimentalDutyCycle(theoreticalDutyCycle);
+          //MIGHT NEED TO INCLUDE BUFFER HERE NEED TO CHECK
+          //analogWrite(PWM_PIN, 255);
+          for(int i = 0; i < 25; i++){
+            Serial.println("Estimating wind speed to be greater than 11MS");
+            if(turbineVoltage > VOLTAGE_AT_11_MS){
+              if(currentPitch < MAXIMUM_PITCH_ANGLE){
+                pitch.write(++currentPitch);
+              }
+            }
+              else if(turbineVoltage < VOLTAGE_AT_11_MS){
+                if(currentPitch > MINIMUM_PITCH_ANGLE){
+                  pitch.write(--currentPitch);
+                }
+              }
+            delay(30);
             
-            if(experimentalDutyCycle > 255){
-              experimentalDutyCycle = 255;
-              theoreticalOutputVoltage = turbineVoltage;
-              analogWrite(PWM_PIN, experimentalDutyCycle);
-            }
-            else if(experimentalDutyCycle < 1){
-              experimentalDutyCycle = 1;
-              theoreticalOutputVoltage = 0;
-              analogWrite(PWM_PIN, experimentalDutyCycle);
-            }
-            else{
-              analogWrite(PWM_PIN, experimentalDutyCycle); //EXPERIMENTAL                
-              stabilizeVoltageGivenDutyCycle(experimentalDutyCycle, theoreticalOutputVoltage);  
-              pitchToMaintainVoltage(turbineVoltage);                                                    //NEED TO ONLY DO THIS IF IT'S WITHIN A BUFFER
-            }
           }
           
         }
         //Pitching to the corresponding pitch at the estimated wind speed
+
+        
         if(turbineVoltage >= MAX_VOLTAGE){
-          pitch.write(currentPitch-3);
-          currentPitch-=3;
+          if(currentPitch < BRAKE_PITCH - 3){
+            pitch.write(currentPitch+3);
+            currentPitch+=3;
+          }
         }
       
         
@@ -301,14 +315,17 @@ void processDisconnectedState(boolean disconnected){
     if(currentPitch!= BRAKE_PITCH){
       EEPROM.write(0+1,currentPitch);
     }
-    digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+    double turbineVoltage = averageTurbineVoltage();
+    if(turbineVoltage > 7){
+      digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+    }
     pitch.write(BRAKE_PITCH);
     currentPitch = BRAKE_PITCH;
-    delay(2000); //DELAY SO IT DOES NOT PITCH BACK HERE
+    delay(4000); //DELAY SO IT DOES NOT PITCH BACK HERE
   }
   else{
     breakedInCompetition = false;
-    digitalWrite(LOAD_ARDUINO_PIN, HIGH);
+    digitalWrite(LOAD_ARDUINO_PIN, LOW);
     EEPROM.write(0,breakedInCompetition);
   }
   return;
@@ -328,14 +345,23 @@ double inferWindSpeed(double voltageIn, double RPM, double power){
     Serial.println("0");
     return 0;
   }
-  double windSpeed = .187*power-0.000956*pow(power,2)+4.35;
-  if(windSpeed > 0){
-    Serial.println(windSpeed);
-    return windSpeed;
+  //double windSpeed = .187*power-0.000956*pow(power,2)+4.35;
+  if(voltageIn>=11 && voltageIn < 22){
+    return 6.01;
   }
-  else{
+  else if(voltageIn>=22 && voltageIn < 30){
+    return 8.01;
+  }
+  else if(voltageIn >= 30){
+    return 11.01;
+  }
+  else if(voltageIn <= 3){
     return 0;
   }
+  else if(voltageIn > 3 && voltageIn < 11){
+    return 5.01;
+  }
+  
 }
 
 
@@ -375,7 +401,7 @@ int calculateTheoreticalDutyCycle(double resistance, double power, double turbin
 
   Serial.print("Theoretical duty calculated as: ");
   Serial.println(theoreticalDutyCycle);
-  delay(3000);
+ // delay(3000);
 
   //ERROR HANDLING
   if(theoreticalDutyCycle > 255){
@@ -427,7 +453,7 @@ boolean determineDisconnect(double loadVoltage, double prePCCVoltage){
   if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER || averageLoadVoltage - averagePrePCCVoltage > VOLTAGE_DIFFERENT_BUFFER){
     Serial.println("System detects a PCC disconnect. Checking in further detail. ");
     boolean checkedFurther = disconnectBetterCheck();
-    delay(1000);
+    delay(500);
     return checkedFurther;
   }
   return false;
@@ -440,6 +466,9 @@ boolean determineDisconnect(double loadVoltage, double prePCCVoltage){
 //
 //CONSTRAINTS: DUTY CYCLE CAN NEVER BE MORE THAN 255 OR LESS THAN 0
 
+//THIS FUNCTION IS NOT USED
+
+/*
 void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
   
   
@@ -469,17 +498,20 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
     iterations++;
   }
 }
+*/
+
+//THIS FUNCTION IS NOT USED
 
 void pitchToMaintainVoltage(double turbineVoltage){
   //PROBABLY SHOULD TAKE AN AVERAGE HERE, PROBABLY SHOULD BE TAKING AVERAGES FOR ALL THE VOLTAGES TO BE HONEST
   if(averageTurbineVoltage() > VOLTAGE_AT_11_MS){
-    if(currentPitch > MINIMUM_USABLE_PITCH_RANGE){
-      pitch.write(--currentPitch);
+    if(currentPitch < MAXIMUM_PITCH_ANGLE){
+      pitch.write(++currentPitch);
     }
   }
   else{
-    if(currentPitch < MAXIMUM_USABLE_PITCH_RANGE){
-      pitch.write(++currentPitch);
+    if(currentPitch > MINIMUM_PITCH_ANGLE){
+      pitch.write(--currentPitch);
     }
   }
 }
@@ -512,7 +544,7 @@ double averagePrePCCVoltage(){
 }
 
 int calculateExperimentalDutyCycle(double theoreticalDutyCycle){
-  return theoreticalDutyCycle;                                        //THIS NEEDS TO BE IMPLEMENTED ACCORDING TO THE DATA
+  return theoreticalDutyCycle;                                        //THIS NEEDS TO BE IMPLEMENTED ACCORDING TO THE DATA AFTER 11MS
 }
 
 
@@ -527,8 +559,16 @@ boolean disconnectBetterCheck(){
     delay(15);
 
   }
-  if(averagePrePCCVoltage-averageLoadVoltage > VOLTAGE_DIFFERENT_BUFFER || averageLoadVoltage - averagePrePCCVoltage > VOLTAGE_DIFFERENT_BUFFER){
-    return true;
+  averageOfAveragePrePCCVoltages = totalAveragePrePCCVoltages/10;
+  Serial.print("Average PrePCCVoltages: ");
+  Serial.println(averageOfAveragePrePCCVoltages);
+  averageOfAverageLoadVoltages = totalAverageLoadVoltages / 10;
+  Serial.print("Average of load voltages");
+  Serial.println(averageOfAverageLoadVoltages);
+  if(averageOfAveragePrePCCVoltages-averageOfAverageLoadVoltages > VOLTAGE_DIFFERENT_BUFFER || averageOfAverageLoadVoltages - averageOfAveragePrePCCVoltages > VOLTAGE_DIFFERENT_BUFFER){
+    if(averageOfAverageLoadVoltages < LOAD_VOLTAGE_BUFFER){
+      return true;
+    }
   }
   else{
     return false;

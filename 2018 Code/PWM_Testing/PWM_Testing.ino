@@ -18,7 +18,7 @@ void writePWMVoltage(double PWMdutycycle){
   Serial.println(PWMdutycycle);
   analogWrite(PWMPin,PWMdutycycle);
   double turbineVoltage = VOLTAGE_DIVIDER_TURBINE*((double)analogRead(A0))*5.0/1023.0;
-  double loadVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
+  //double loadVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A6))*5.0/1023.0;
   double prePCCVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0;
     //Reading in turbine and load voltage
     
@@ -27,7 +27,7 @@ void writePWMVoltage(double PWMdutycycle){
   Serial.print("Reading in a turbine voltage of: ");
   Serial.println(turbineVoltage);
   Serial.print("Reading in a load voltage of: ");
-  Serial.println(loadVoltage);
+  //Serial.println(loadVoltage);
   Serial.print("Reading in a pre-pcc Voltage of: ");
   Serial.println(prePCCVoltage);
   delay(5000);
@@ -36,7 +36,7 @@ void writePWMVoltage(double PWMdutycycle){
 
 void loop()
 {
-  writePWMVoltage(9);
+  writePWMVoltage(42);
 }
 
 

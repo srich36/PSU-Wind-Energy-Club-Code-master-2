@@ -6,13 +6,13 @@
 
 const int PWM_PIN = 3; 
 const int SERVO_PITCH_PIN = 9; 
-const int LOWER_VOLTAGE_LIMIT = 10;
-const int UPPER_VOLTAGE_LIMIT = 15;
-const int MAINTAIN_VOLTAGE_IN = 13;
+const int LOWER_VOLTAGE_LIMIT = 105;
+const int UPPER_VOLTAGE_LIMIT = 32;
+const int MAINTAIN_VOLTAGE_IN = 22;
 const double VOLTAGE_DIVIDER_LOAD = 14.327;
 const int DUTY_CYCLE_RATIO = 5;
-const int MINIMUM_PITCH_RANGE = 25;
-const int MAXIMUM_PITCH_RANGE = 75;
+const int MINIMUM_PITCH_RANGE = 45;
+const int MAXIMUM_PITCH_RANGE = 95;
 static int currentPitch;
 
 
@@ -37,8 +37,8 @@ void setup(){
   pitch.attach(SERVO_PITCH_PIN);
   pitch.write(STARTUP_PITCH);
   currentPitch = STARTUP_PITCH;
-  analogWrite(PWM_PIN, 50);
-  delay(3000);
+  analogWrite(PWM_PIN, 255);
+  //delay(3000);
   
 }
 
@@ -75,6 +75,7 @@ void loop(){
   double prePCCVoltage = VOLTAGE_DIVIDER_PRE_PCC*((double)analogRead(A2))*5.0/1023.0;
   Serial.print("prePCC voltage is: ");
   Serial.println(prePCCVoltage);
+  delay(3000);
   
   
   //Move to the t+1 loop domain
@@ -85,9 +86,9 @@ void determinePitch(double turbineVoltage){
   
   //Case 1:
   if(turbineVoltage < LOWER_VOLTAGE_LIMIT){
-    if(currentPitch <= MAXIMUM_PITCH_RANGE){
-      pitch.write(currentPitch+1);
-      currentPitch++;
+    if(currentPitch > MINIMUM_PITCH_RANGE){
+      pitch.write(currentPitch-1);
+      currentPitch--;
     }
   }
   else if(turbineVoltage> LOWER_VOLTAGE_LIMIT && turbineVoltage < MAINTAIN_VOLTAGE_IN){ //Case 2
@@ -95,9 +96,9 @@ void determinePitch(double turbineVoltage){
       //Do nothing
     }
     else{
-      if(currentPitch <= MAXIMUM_PITCH_RANGE){
-        pitch.write(currentPitch+1);
-        currentPitch++;
+      if(currentPitch > MINIMUM_PITCH_RANGE){
+        pitch.write(currentPitch-1);
+        currentPitch--;
       }
     }
     
@@ -105,9 +106,9 @@ void determinePitch(double turbineVoltage){
   else if(turbineVoltage >= MAINTAIN_VOLTAGE_IN && turbineVoltage < UPPER_VOLTAGE_LIMIT){  //Case 3
     
     if(turbineVoltage>=turbineVoltageBefore){
-      if(currentPitch >= MINIMUM_PITCH_RANGE){
-        pitch.write(currentPitch-1);
-        currentPitch--;
+      if(currentPitch < MAXIMUM_PITCH_RANGE){
+        pitch.write(currentPitch+1);
+        currentPitch++;
       }
     }
     else{
@@ -116,18 +117,18 @@ void determinePitch(double turbineVoltage){
     
   }
   else if(turbineVoltage>=UPPER_VOLTAGE_LIMIT){
-    if(currentPitch >= MINIMUM_PITCH_RANGE+3){
-      pitch.write(currentPitch - 3);
-      currentPitch -= 3;
+    if(currentPitch < MAXIMUM_PITCH_RANGE-3){
+      pitch.write(currentPitch + 3);
+      currentPitch += 3;
     }
-    else if(currentPitch >= MINIMUM_PITCH_RANGE+2){
+    else if(currentPitch < MAXIMUM_PITCH_RANGE-2){
 
-      pitch.write(currentPitch - 2);
-      currentPitch -= 2;
+      pitch.write(currentPitch + 2);
+      currentPitch += 2;
     }
-    else if(currentPitch >= MINIMUM_PITCH_RANGE+2){
-      pitch.write(currentPitch-1);
-      currentPitch-=1;
+    else if(currentPitch < MAXIMUM_PITCH_RANGE-1){
+      pitch.write(currentPitch+1);
+      currentPitch+=1;
     }
   }
   
@@ -141,7 +142,7 @@ void determinePitch(double turbineVoltage){
     Serial.println(turbineVoltageBefore);
     //For debugging
   }
-  delay(10);
+  delay(30);
 }
 
 int calculateDutyCycle(double turbineVoltage){
@@ -186,6 +187,7 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
   while(iterations < 1000 && flag == true){
     flag = false;
     double prePCCVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0;
+    //Serial.println(prePCCVoltage);
     if(VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0 < desiredVoltage - THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER){
       flag = true;
       if(dutyCycle < 255){
@@ -206,6 +208,7 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
     }
        
     iterations++;
+   // delay(7);
   }
 }
 
