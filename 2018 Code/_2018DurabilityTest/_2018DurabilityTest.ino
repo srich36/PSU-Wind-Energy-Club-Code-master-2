@@ -14,10 +14,12 @@ const int DUTY_CYCLE_RATIO = 5;
 const int MINIMUM_PITCH_RANGE = 45;
 const int MAXIMUM_PITCH_RANGE = 95;
 static int currentPitch;
+const double MAX_VOLTAGE = 40;
+const int BRAKE_PITCH = 110;
 
 
 double turbineVoltageBefore;
-const int STARTUP_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
+const int DURABILITY_PITCH = 55; //Need to verify pitch for new turbine -> should be verified now
 const double VOLTAGE_DIVIDER_TURBINE = 13.015; //This should be the same as last year so we are good
 const double THEORETICAL_VS_ACTUAL_VOLTAGE_BUFFER = .3;
 const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
@@ -25,6 +27,8 @@ const double VOLTAGE_DIVIDER_PRE_PCC = 14.327;
 void determinePitch(double turbineVoltage);
 int calculateDutyCycle(double);
 void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage);
+void safetyMaxVoltageCheck();
+double averageTurbineVoltage();
 
 
 Servo pitch;
@@ -35,24 +39,23 @@ void setup(){
   pinMode(PWM_PIN, OUTPUT);
   turbineVoltageBefore = -1;
   pitch.attach(SERVO_PITCH_PIN);
-  pitch.write(STARTUP_PITCH);
-  currentPitch = STARTUP_PITCH;
+  pitch.write(DURABILITY_PITCH);
+  currentPitch = DURABILITY_PITCH;
   analogWrite(PWM_PIN, 255);
-  //delay(3000);
+  delay(2000);
   
 }
 
 void loop(){
+  pitch.write(DURABILITY_PITCH);
+  currentPitch = DURABILITY_PITCH;
   double turbineVoltage;
   int dutyCycle;
   double theoreticalVoltage;
   turbineVoltage = VOLTAGE_DIVIDER_TURBINE*((double)analogRead(A0))*5.0/1023.0;
-  if(turbineVoltageBefore!= -1){ //This is not the first voltage reading.
-    determinePitch(turbineVoltage);
-  }
   //Else do nothing because it's only the first loop
   //Now calculate the duty cycle
-  
+  safetyMaxVoltageCheck();
   
   dutyCycle = calculateDutyCycle(turbineVoltage);
   theoreticalVoltage = turbineVoltage*double(dutyCycle)/255.0;
@@ -184,7 +187,8 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
   
   int iterations = 0;
   bool flag = true;
-  while(iterations < 1000 && flag == true){
+  while(iterations < 100 && flag == true){
+    safetyMaxVoltageCheck();
     flag = false;
     double prePCCVoltage = VOLTAGE_DIVIDER_LOAD*((double)analogRead(A2))*5.0/1023.0;
     //Serial.println(prePCCVoltage);
@@ -212,4 +216,27 @@ void stabilizeVoltageGivenDutyCycle(int dutyCycle, double desiredVoltage){
   }
 }
 
+
+void safetyMaxVoltageCheck(){
+  double turbineVoltage = averageTurbineVoltage();
+  if(turbineVoltage >= MAX_VOLTAGE){
+    Serial.println("Voltage crossing threshold. Breaking the turbine. ");
+    pitch.write(BRAKE_PITCH);
+    currentPitch = BRAKE_PITCH;
+    delay(15000);
+  }
+  else{
+    Serial.println("Voltage not crossing threshold. ");
+  }
+  
+}
+
+double averageTurbineVoltage(){
+  double totalVoltage = 0;
+  for(int i = 0; i < 10; i++){
+    totalVoltage+=VOLTAGE_DIVIDER_TURBINE*((double)analogRead(A0))*5.0/1023.0;
+  }
+  return totalVoltage/10;
+
+}
 
